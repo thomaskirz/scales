@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Balance Scale Interactive Math</title>
+    <title>Waagen</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -108,6 +108,8 @@
             font-weight: bold;
             color: white;
             box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+            touch-action: none;
+            user-select: none;
         }
 
         .item:active { cursor: grabbing; }
@@ -159,11 +161,11 @@
             <div class="beam-wrapper" id="scale1-beam">
                 <div class="beam"></div>
                 <div class="pan left dropzone" id="s1-left">
-                    <div class="item green-box draggable" draggable="true" data-weight="3"></div>
+                    <div class="item green-box draggable" data-weight="3"></div>
                 </div>
                 <div class="pan right dropzone" id="s1-right">
-                    <div class="item blue-box draggable" draggable="true" data-weight="2"></div>
-                    <div class="item weight-1kg draggable" draggable="true" data-weight="1">1kg</div>
+                    <div class="item blue-box draggable" data-weight="2"></div>
+                    <div class="item weight-1kg draggable" data-weight="1">1kg</div>
                 </div>
             </div>
             <div class="fulcrum"></div>
@@ -174,11 +176,11 @@
             <div class="beam-wrapper" id="scale2-beam">
                 <div class="beam"></div>
                 <div class="pan left dropzone" id="s2-left">
-                    <div class="item green-box draggable" draggable="true" data-weight="3"></div>
-                    <div class="item blue-box draggable" draggable="true" data-weight="2"></div>
+                    <div class="item green-box draggable" data-weight="3"></div>
+                    <div class="item blue-box draggable" data-weight="2"></div>
                 </div>
                 <div class="pan right dropzone" id="s2-right">
-                    <div class="item weight-5kg draggable" draggable="true" data-weight="5">5kg</div>
+                    <div class="item weight-5kg draggable" data-weight="5">5kg</div>
                 </div>
             </div>
             <div class="fulcrum"></div>
@@ -188,41 +190,87 @@
     </div>
 
     <script>
-        // 1. Setup Drag and Drop Mechanics
-        const draggables = document.querySelectorAll('.draggable');
-        const dropzones = document.querySelectorAll('.dropzone');
+        // 1. Setup Pointer-based Drag and Drop
+        let draggedItem = null;
+        let offsetX = 0;
+        let offsetY = 0;
 
-        draggables.forEach(draggable => {
-            draggable.addEventListener('dragstart', () => {
-                draggable.classList.add('dragging');
-            });
+        const items = document.querySelectorAll('.item');
 
-            draggable.addEventListener('dragend', () => {
-                draggable.classList.remove('dragging');
-                updatePhysics(); // Recalculate balances every time an item is dropped
-            });
+        items.forEach(item => {
+            // Listen for mouse click or touch start
+            item.addEventListener('pointerdown', startDrag);
         });
 
-        dropzones.forEach(zone => {
-            zone.addEventListener('dragover', e => {
-                e.preventDefault(); // Required to allow dropping
-            });
+        function startDrag(e) {
+            e.preventDefault(); // Stop default browser behaviors
+            draggedItem = this;
 
-            zone.addEventListener('drop', e => {
-                e.preventDefault();
-                const draggingItem = document.querySelector('.dragging');
-                if (draggingItem) {
-                    zone.appendChild(draggingItem);
-                }
-            });
-        });
+            // Calculate where exactly on the item the user clicked/touched
+            const rect = draggedItem.getBoundingClientRect();
+            offsetX = e.clientX - rect.left;
+            offsetY = e.clientY - rect.top;
 
-        // 2. Setup the Physics Logic
+            // Prepare the item to move freely around the screen
+            draggedItem.classList.add('dragging');
+            draggedItem.style.position = 'fixed';
+            draggedItem.style.zIndex = 1000;
+            
+            // Move it immediately to the finger's current location
+            moveItem(e.clientX, e.clientY);
+
+            // Listen for finger movement and release across the whole document
+            document.addEventListener('pointermove', drag);
+            document.addEventListener('pointerup', endDrag);
+            document.addEventListener('pointercancel', endDrag);
+        }
+
+        function drag(e) {
+            if (!draggedItem) return;
+            e.preventDefault();
+            moveItem(e.clientX, e.clientY);
+        }
+
+        function moveItem(x, y) {
+            draggedItem.style.left = (x - offsetX) + 'px';
+            draggedItem.style.top = (y - offsetY) + 'px';
+        }
+
+        function endDrag(e) {
+            if (!draggedItem) return;
+
+            // Figure out what element is currently underneath our finger
+            const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
+            
+            // Check if that element is inside a valid 'dropzone' (pan or staging area)
+            const dropzone = elemBelow ? elemBelow.closest('.dropzone') : null;
+
+            // Reset all the free-moving styles
+            draggedItem.style.position = '';
+            draggedItem.style.zIndex = '';
+            draggedItem.style.left = '';
+            draggedItem.style.top = '';
+            draggedItem.classList.remove('dragging');
+
+            // If we are hovering over a valid dropzone, snap it inside
+            if (dropzone) {
+                dropzone.appendChild(draggedItem);
+            }
+
+            draggedItem = null;
+            updatePhysics(); // Recalculate weights
+
+            // Clean up the event listeners until the next click/touch
+            document.removeEventListener('pointermove', drag);
+            document.removeEventListener('pointerup', endDrag);
+            document.removeEventListener('pointercancel', endDrag);
+        }
+
+        // 2. Setup the Physics Logic (unchanged from before)
         function calculateWeight(zoneId) {
             const zone = document.getElementById(zoneId);
             let totalWeight = 0;
             
-            // Loop through all items currently sitting in this specific pan
             Array.from(zone.children).forEach(item => {
                 totalWeight += parseInt(item.dataset.weight);
             });
@@ -237,11 +285,11 @@
             const scale1Beam = document.getElementById('scale1-beam');
             
             if (s1LeftWeight > s1RightWeight) {
-                scale1Beam.style.setProperty('--tilt', '-15deg'); // Tilt Left
+                scale1Beam.style.setProperty('--tilt', '-15deg');
             } else if (s1RightWeight > s1LeftWeight) {
-                scale1Beam.style.setProperty('--tilt', '15deg');  // Tilt Right
+                scale1Beam.style.setProperty('--tilt', '15deg');
             } else {
-                scale1Beam.style.setProperty('--tilt', '0deg');   // Balanced
+                scale1Beam.style.setProperty('--tilt', '0deg');
             }
 
             // Check Scale 2
