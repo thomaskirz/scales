@@ -115,7 +115,9 @@
         .item:active { cursor: grabbing; }
         
         .item.dragging {
-            opacity: 0.5;
+            opacity: 0.8;
+            transform: scale(1.1); 
+            pointer-events: none; 
         }
 
         /* Specific Items from the Photo */
@@ -194,32 +196,32 @@
         let draggedItem = null;
         let offsetX = 0;
         let offsetY = 0;
+        let originalParent = null; // NEW: Remember where the item came from
 
         const items = document.querySelectorAll('.item');
 
         items.forEach(item => {
-            // Listen for mouse click or touch start
             item.addEventListener('pointerdown', startDrag);
         });
 
         function startDrag(e) {
-            e.preventDefault(); // Stop default browser behaviors
+            e.preventDefault(); 
             draggedItem = this;
+            originalParent = draggedItem.parentNode; // Save starting location
 
-            // Calculate where exactly on the item the user clicked/touched
             const rect = draggedItem.getBoundingClientRect();
             offsetX = e.clientX - rect.left;
             offsetY = e.clientY - rect.top;
 
-            // Prepare the item to move freely around the screen
             draggedItem.classList.add('dragging');
             draggedItem.style.position = 'fixed';
             draggedItem.style.zIndex = 1000;
             
-            // Move it immediately to the finger's current location
+            // CRITICAL FIX: Move item to the main body to escape CSS transforms
+            document.body.appendChild(draggedItem);
+            
             moveItem(e.clientX, e.clientY);
 
-            // Listen for finger movement and release across the whole document
             document.addEventListener('pointermove', drag);
             document.addEventListener('pointerup', endDrag);
             document.addEventListener('pointercancel', endDrag);
@@ -239,34 +241,33 @@
         function endDrag(e) {
             if (!draggedItem) return;
 
-            // Figure out what element is currently underneath our finger
+            // Find what is underneath the pointer
             const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
-            
-            // Check if that element is inside a valid 'dropzone' (pan or staging area)
             const dropzone = elemBelow ? elemBelow.closest('.dropzone') : null;
 
-            // Reset all the free-moving styles
+            // Reset styles
             draggedItem.style.position = '';
             draggedItem.style.zIndex = '';
             draggedItem.style.left = '';
             draggedItem.style.top = '';
             draggedItem.classList.remove('dragging');
 
-            // If we are hovering over a valid dropzone, snap it inside
+            // Snap to dropzone, or return to original place if dropped in nowhere
             if (dropzone) {
                 dropzone.appendChild(draggedItem);
+            } else {
+                originalParent.appendChild(draggedItem);
             }
 
             draggedItem = null;
-            updatePhysics(); // Recalculate weights
+            updatePhysics(); 
 
-            // Clean up the event listeners until the next click/touch
             document.removeEventListener('pointermove', drag);
             document.removeEventListener('pointerup', endDrag);
             document.removeEventListener('pointercancel', endDrag);
         }
 
-        // 2. Setup the Physics Logic (unchanged from before)
+        // 2. Setup the Physics Logic
         function calculateWeight(zoneId) {
             const zone = document.getElementById(zoneId);
             let totalWeight = 0;
@@ -306,7 +307,7 @@
             }
         }
 
-        updatePhysics(); // Initial call to set the scales correctly on page load
+        updatePhysics(); // Initial call
     </script>
 </body>
 </html>
