@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Balance Scale Interactive Math</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1 { color: #333; }
+
+        /* Staging Area */
+        #staging-area {
+            min-height: 100px;
+            width: 80%;
+            background-color: #fff;
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            padding: 20px;
+            margin-bottom: 40px;
+        }
+
+        /* Scale Layout */
+        .scales-container {
+            display: flex;
+            gap: 50px;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .scale {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 50px;
+        }
+
+        /* The Balance Beam */
+        .beam-wrapper {
+            width: 300px;
+            height: 20px;
+            position: relative;
+            /* This variable is updated by JavaScript */
+            --tilt: 0deg; 
+            transform: rotate(var(--tilt));
+            transition: transform 0.5s ease-in-out;
+        }
+
+        .beam {
+            width: 100%;
+            height: 10px;
+            background-color: #666;
+            border-radius: 5px;
+            position: absolute;
+            top: 5px;
+        }
+
+        /* The Pans */
+        .pan {
+            width: 100px;
+            min-height: 80px;
+            background-color: rgba(200, 200, 200, 0.3);
+            border-bottom: 5px solid #555;
+            position: absolute;
+            top: -70px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 5px;
+            gap: 5px;
+            /* Counter-rotate so the pans always stay flat! */
+            transform: rotate(calc(var(--tilt) * -1));
+            transition: transform 0.5s ease-in-out;
+        }
+
+        .pan.left { left: 0; }
+        .pan.right { right: 0; }
+
+        /* The Fulcrum (Base) */
+        .fulcrum {
+            width: 0;
+            height: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-bottom: 40px solid #444;
+            margin-top: -5px;
+            z-index: 10;
+        }
+
+        /* Draggable Items */
+        .item {
+            cursor: grab;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            color: white;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .item:active { cursor: grabbing; }
+        
+        .item.dragging {
+            opacity: 0.5;
+        }
+
+        /* Specific Items from the Photo */
+        .green-box {
+            width: 40px;
+            height: 60px;
+            background-color: #8bc34a;
+        }
+
+        .blue-box {
+            width: 40px;
+            height: 45px;
+            background-color: #29b6f6;
+        }
+
+        .weight-1kg {
+            width: 35px;
+            height: 35px;
+            background-color: #9e9e9e;
+            border-radius: 50%;
+            font-size: 12px;
+        }
+
+        .weight-5kg {
+            width: 60px;
+            height: 60px;
+            background-color: #78909c;
+            border-radius: 50%;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Wie kann man die Masse eines blauen Päckchens bestimmen?</h2>
+    <p>Ziehe die Gegenstände zwischen dem Ablagebereich und den Waagen. Die Waagen neigen sich automatisch basierend auf den versteckten Gewichten.</p>
+
+    <div id="staging-area" class="dropzone"></div>
+
+    <div class="scales-container">
+        
+        <div class="scale">
+            <div class="beam-wrapper" id="scale1-beam">
+                <div class="beam"></div>
+                <div class="pan left dropzone" id="s1-left">
+                    <div class="item green-box draggable" draggable="true" data-weight="3"></div>
+                </div>
+                <div class="pan right dropzone" id="s1-right">
+                    <div class="item blue-box draggable" draggable="true" data-weight="2"></div>
+                    <div class="item weight-1kg draggable" draggable="true" data-weight="1">1kg</div>
+                </div>
+            </div>
+            <div class="fulcrum"></div>
+            <h3>Scale 1</h3>
+        </div>
+
+        <div class="scale">
+            <div class="beam-wrapper" id="scale2-beam">
+                <div class="beam"></div>
+                <div class="pan left dropzone" id="s2-left">
+                    <div class="item green-box draggable" draggable="true" data-weight="3"></div>
+                    <div class="item blue-box draggable" draggable="true" data-weight="2"></div>
+                </div>
+                <div class="pan right dropzone" id="s2-right">
+                    <div class="item weight-5kg draggable" draggable="true" data-weight="5">5kg</div>
+                </div>
+            </div>
+            <div class="fulcrum"></div>
+            <h3>Scale 2</h3>
+        </div>
+
+    </div>
+
+    <script>
+        // 1. Setup Drag and Drop Mechanics
+        const draggables = document.querySelectorAll('.draggable');
+        const dropzones = document.querySelectorAll('.dropzone');
+
+        draggables.forEach(draggable => {
+            draggable.addEventListener('dragstart', () => {
+                draggable.classList.add('dragging');
+            });
+
+            draggable.addEventListener('dragend', () => {
+                draggable.classList.remove('dragging');
+                updatePhysics(); // Recalculate balances every time an item is dropped
+            });
+        });
+
+        dropzones.forEach(zone => {
+            zone.addEventListener('dragover', e => {
+                e.preventDefault(); // Required to allow dropping
+            });
+
+            zone.addEventListener('drop', e => {
+                e.preventDefault();
+                const draggingItem = document.querySelector('.dragging');
+                if (draggingItem) {
+                    zone.appendChild(draggingItem);
+                }
+            });
+        });
+
+        // 2. Setup the Physics Logic
+        function calculateWeight(zoneId) {
+            const zone = document.getElementById(zoneId);
+            let totalWeight = 0;
+            
+            // Loop through all items currently sitting in this specific pan
+            Array.from(zone.children).forEach(item => {
+                totalWeight += parseInt(item.dataset.weight);
+            });
+            
+            return totalWeight;
+        }
+
+        function updatePhysics() {
+            // Check Scale 1
+            const s1LeftWeight = calculateWeight('s1-left');
+            const s1RightWeight = calculateWeight('s1-right');
+            const scale1Beam = document.getElementById('scale1-beam');
+            
+            if (s1LeftWeight > s1RightWeight) {
+                scale1Beam.style.setProperty('--tilt', '-15deg'); // Tilt Left
+            } else if (s1RightWeight > s1LeftWeight) {
+                scale1Beam.style.setProperty('--tilt', '15deg');  // Tilt Right
+            } else {
+                scale1Beam.style.setProperty('--tilt', '0deg');   // Balanced
+            }
+
+            // Check Scale 2
+            const s2LeftWeight = calculateWeight('s2-left');
+            const s2RightWeight = calculateWeight('s2-right');
+            const scale2Beam = document.getElementById('scale2-beam');
+
+            if (s2LeftWeight > s2RightWeight) {
+                scale2Beam.style.setProperty('--tilt', '-15deg');
+            } else if (s2RightWeight > s2LeftWeight) {
+                scale2Beam.style.setProperty('--tilt', '15deg');
+            } else {
+                scale2Beam.style.setProperty('--tilt', '0deg');
+            }
+        }
+
+        updatePhysics(); // Initial call to set the scales correctly on page load
+    </script>
+</body>
+</html>
